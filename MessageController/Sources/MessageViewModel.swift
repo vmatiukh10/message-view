@@ -18,9 +18,6 @@ class MessageViewModel {
     @Observable
     var messages: [Message] = []
     
-    @Observable
-    var isFetchingData: Bool = false
-    
     weak var delegate: MessageSendingProtocol?
     
     func loadMessages() {

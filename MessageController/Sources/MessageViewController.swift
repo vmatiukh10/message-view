@@ -12,34 +12,38 @@ class MessageViewController: UIViewController {
     @IBOutlet weak var tableView: UITableView!
     @IBOutlet weak var textField: UITextField!
     @IBOutlet weak var bottomConstraint: NSLayoutConstraint!
-    lazy var loaderView: UIView = {
-        UIActivityIndicatorView(style: .large)
-    }()
     
     var viewModel = MessageViewModel()
+    private var contentSizeObserverKey: NSKeyValueObservation?
     
     override func viewDidLoad() {
         super.viewDidLoad()
         
         viewModel.delegate = self
+        textField.delegate = self
         tableView.dataSource = self
         tableView.delegate = self
         tableView.register(cell: MessageCell.self)
         viewModel.$messages.subscribe(self) { this, messages in
             this.tableView.reloadData()
-            this.updateTableViewOffset()
-        }
-        viewModel.$isFetchingData.subscribe(self) { this, isLoading in
-            if isLoading {
-                this.view.addSubview(this.loaderView)
-                this.loaderView.center = this.view.center
-            } else {
-                this.loaderView.removeFromSuperview()
-            }
         }
         
         NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillHide), name: UIResponder.keyboardWillHideNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillShow), name: UIResponder.keyboardWillShowNotification, object: nil)
+    }
+    
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        
+        contentSizeObserverKey = tableView.observe(\.contentSize) { tableView, _ in
+            self.updateTableViewOffset()
+        }
+    }
+    
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        
+        contentSizeObserverKey?.invalidate()
     }
     
     private func updateTableViewOffset() {
@@ -49,7 +53,6 @@ class MessageViewController: UIViewController {
             return
         }
         tableView.contentInset = UIEdgeInsets(top: offset, left: 0, bottom: 0, right: 0)
-        scrollToBottom()
     }
     
     @IBAction func sendAction(_ sender: UIButton) {
@@ -113,6 +116,9 @@ extension MessageViewController: UITableViewDataSource, UITableViewDelegate {
         })
     }
     func scrollToBottom()  {
+        guard !tableView.visibleCells.isEmpty else {
+            return
+        }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             self.tableView.scrollToRow(at: .init(row: (self.viewModel.messages.count - 1), section: 0), at: .bottom, animated: true)
         }
@@ -123,5 +129,12 @@ extension MessageViewController: UITableViewDataSource, UITableViewDelegate {
 extension MessageViewController: MessageSendingProtocol {
     func messageDidSend() {
         scrollToBottom()
+    }
+}
+
+extension MessageViewController: UITextFieldDelegate {
+    func textFieldShouldReturn(_ textField: UITextField) -> Bool {
+        textField.endEditing(true)
+        return true
     }
 }
